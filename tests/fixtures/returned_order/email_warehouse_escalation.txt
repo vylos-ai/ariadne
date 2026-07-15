@@ -1,0 +1,29 @@
+From: priya.w@northwind-retail.example
+To: dave.ops@northwind-retail.example
+Cc: ops-lead@northwind-retail.example
+Subject: return for order 48213 - flagging for you
+Date: Wed, 5 Mar 2025 15:40
+
+Dave,
+
+Got the jacket back for 48213 today. Tags are still on, doesn't look worn,
+smells fine (we do actually check that lol). So this one's a normal
+approve -- I updated the Returns Tracker row to "Inspected - Approved" and
+picked "reship correct size" since that's what the customer wanted per her
+original ticket.
+
+Question though -- I logged the reship request but I don't have a way to
+actually trigger the new shipment myself, I think that still needs someone
+on your side to create the replacement order in Order Mgmt System? Can you
+do that or should I ping ops-lead directly? We should probably fix this
+handoff at some point, I keep having to escalate every single reship.
+
+Separately: got ANOTHER return in yesterday (order #48390) that's the
+opposite case -- item's clearly been worn (deodorant marks, no tags) and
+customer wants a refund. Per policy that's a deny -- can't restock a worn
+item, no refund, no reship. I marked it "Inspected - Denied" in the
+tracker and I think we're supposed to email the customer with the reason?
+Not sure who normally sends that email, want to confirm with you before I
+just delete the ticket.
+
+- Priya, Warehouse

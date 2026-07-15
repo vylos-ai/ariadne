@@ -1,0 +1,502 @@
+{
+  "nodes": [
+    {
+      "id": "evidence-email-customer-complaint",
+      "type": "Evidence",
+      "properties": {
+        "source": "email_customer_complaint.txt",
+        "summary": "Customer emails support about a wrong-size jacket; support (Dave) logs an RMA, sends a prepaid label, and explains the inspection + final-sale-if-worn policy."
+      },
+      "evidence_ids": []
+    },
+    {
+      "id": "evidence-email-warehouse-escalation",
+      "type": "Evidence",
+      "properties": {
+        "source": "email_warehouse_escalation.txt",
+        "summary": "Warehouse (Priya) inspects a returned item, approves it, and flags that reship requires an ops handoff she can't do herself; also describes a second, denied return."
+      },
+      "evidence_ids": []
+    },
+    {
+      "id": "evidence-interview-ops-lead",
+      "type": "Evidence",
+      "properties": {
+        "source": "interview_ops_lead.txt",
+        "summary": "Ops lead (Marcus) walks through the end-to-end returns process: RMA logging, label, inspection, approve/deny decision, reship/refund, and the denial notification."
+      },
+      "evidence_ids": []
+    },
+    {
+      "id": "role-support",
+      "type": "Role",
+      "properties": {
+        "name": "Support"
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "role-warehouse",
+      "type": "Role",
+      "properties": {
+        "name": "Warehouse"
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "role-ops-lead",
+      "type": "Role",
+      "properties": {
+        "name": "Ops Lead"
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "system-order-mgmt",
+      "type": "System",
+      "properties": {
+        "name": "Order Mgmt System",
+        "notes": "Shopify backend"
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "system-returns-tracker",
+      "type": "System",
+      "properties": {
+        "name": "Returns Tracker",
+        "notes": "Spreadsheet; RMA flow isn't natively in Shopify"
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "data-return-request",
+      "type": "DataObject",
+      "properties": {
+        "name": "Return request (RMA ticket)"
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "data-shipping-label",
+      "type": "DataObject",
+      "properties": {
+        "name": "Prepaid shipping label"
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "data-inspection-result",
+      "type": "DataObject",
+      "properties": {
+        "name": "Inspection result (approved/denied + resolution)"
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "data-replacement-order",
+      "type": "DataObject",
+      "properties": {
+        "name": "Replacement order"
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "data-refund",
+      "type": "DataObject",
+      "properties": {
+        "name": "Refund"
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "policy-final-sale-if-worn",
+      "type": "Policy",
+      "properties": {
+        "name": "Final sale if worn",
+        "description": "A returned item with tags removed, worn, or damaged cannot be restocked; the return is denied outright (no refund, no reship)."
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "decision-inspection-outcome",
+      "type": "Decision",
+      "properties": {
+        "name": "Inspection outcome",
+        "condition": "Tags still on AND item unworn/undamaged -> approved; otherwise -> denied"
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "exception-manual-reship-handoff",
+      "type": "Exception",
+      "properties": {
+        "name": "Manual reship handoff bottleneck",
+        "description": "Warehouse cannot create the replacement order itself; every approved reship has to be escalated to ops to create it in Order Mgmt System, sometimes delaying reships by a day."
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "exception-denial-email-skipped",
+      "type": "Exception",
+      "properties": {
+        "name": "Denial notification sometimes skipped",
+        "description": "The customer email explaining a denied return isn't automated and is reportedly forgotten some of the time."
+      },
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-open-rma",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Open RMA",
+        "description": "Customer emails support; support logs a return request as a row in the Returns Tracker."
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-send-label",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Send shipping label",
+        "description": "Support manually buys and emails a prepaid shipping label to the customer."
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-inspect-item",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Inspect returned item",
+        "description": "Warehouse checks the returned item for tags and signs of wear/damage."
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-record-decision",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Record inspection decision",
+        "description": "Warehouse records Approved/Denied and the resolution in the Returns Tracker."
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-create-reship-order",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Create replacement order",
+        "description": "Ops creates the replacement order in Order Mgmt System for an approved reship."
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-process-refund",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Process refund",
+        "description": "A refund is issued for an approved return where the customer asked for money back."
+      },
+      "evidence_ids": [
+        "evidence-email-customer-complaint",
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "id": "step-notify-denied",
+      "type": "ProcessStep",
+      "properties": {
+        "name": "Notify customer of denial",
+        "description": "Whoever is watching the tracker emails the customer explaining the denial and the final-sale policy."
+      },
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation",
+        "evidence-interview-ops-lead"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "type": "triggers",
+      "source": "step-open-rma",
+      "target": "step-send-label",
+      "evidence_ids": [
+        "evidence-email-customer-complaint"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-send-label",
+      "target": "step-inspect-item",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-inspect-item",
+      "target": "decision-inspection-outcome",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "decision-inspection-outcome",
+      "target": "step-record-decision",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-record-decision",
+      "target": "step-create-reship-order",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-record-decision",
+      "target": "step-process-refund",
+      "evidence_ids": [
+        "evidence-email-customer-complaint"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-record-decision",
+      "target": "step-notify-denied",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-create-reship-order",
+      "target": "exception-manual-reship-handoff",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "triggers",
+      "source": "step-notify-denied",
+      "target": "exception-denial-email-skipped",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "requires",
+      "source": "step-open-rma",
+      "target": "system-returns-tracker",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "requires",
+      "source": "step-record-decision",
+      "target": "system-returns-tracker",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "requires",
+      "source": "step-create-reship-order",
+      "target": "system-order-mgmt",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "requires",
+      "source": "decision-inspection-outcome",
+      "target": "policy-final-sale-if-worn",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "produces",
+      "source": "step-open-rma",
+      "target": "data-return-request",
+      "evidence_ids": [
+        "evidence-email-customer-complaint"
+      ]
+    },
+    {
+      "type": "produces",
+      "source": "step-send-label",
+      "target": "data-shipping-label",
+      "evidence_ids": [
+        "evidence-email-customer-complaint"
+      ]
+    },
+    {
+      "type": "produces",
+      "source": "step-inspect-item",
+      "target": "data-inspection-result",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "produces",
+      "source": "step-create-reship-order",
+      "target": "data-replacement-order",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "produces",
+      "source": "step-process-refund",
+      "target": "data-refund",
+      "evidence_ids": [
+        "evidence-email-customer-complaint"
+      ]
+    },
+    {
+      "type": "owned_by",
+      "source": "step-open-rma",
+      "target": "role-support",
+      "evidence_ids": [
+        "evidence-email-customer-complaint"
+      ]
+    },
+    {
+      "type": "owned_by",
+      "source": "step-send-label",
+      "target": "role-support",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "owned_by",
+      "source": "step-inspect-item",
+      "target": "role-warehouse",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "owned_by",
+      "source": "step-record-decision",
+      "target": "role-warehouse",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "owned_by",
+      "source": "step-create-reship-order",
+      "target": "role-ops-lead",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "owned_by",
+      "source": "step-notify-denied",
+      "target": "role-support",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "escalates_to",
+      "source": "role-warehouse",
+      "target": "role-ops-lead",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "depends_on",
+      "source": "step-create-reship-order",
+      "target": "step-record-decision",
+      "evidence_ids": [
+        "evidence-email-warehouse-escalation"
+      ]
+    },
+    {
+      "type": "depends_on",
+      "source": "step-process-refund",
+      "target": "step-record-decision",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    },
+    {
+      "type": "depends_on",
+      "source": "step-notify-denied",
+      "target": "step-record-decision",
+      "evidence_ids": [
+        "evidence-interview-ops-lead"
+      ]
+    }
+  ]
+}

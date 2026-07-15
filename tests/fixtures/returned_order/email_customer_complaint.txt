@@ -1,0 +1,42 @@
+From: sarah.k@northwind-retail.example
+To: support@northwind-retail.example
+Subject: RE: Order #48213 - wrong size, want to send back
+Date: Mon, 3 Mar 2025 09:14
+
+hi there,
+
+so i ordered the blue jacket in size L (order #48213, placed 2/24) and it
+came in M instead?? not sure if that's on your end or the warehouse but i
+just want to return it and get the right size or my money back tbh,
+whichever is faster. can you send me a shipping label or do i need to
+print my own
+
+thanks
+sarah
+
+------- forwarded message -------
+From: dave.ops@northwind-retail.example
+To: sarah.k@northwind-retail.example
+Subject: RE: RE: Order #48213 - wrong size, want to send back
+Date: Mon, 3 Mar 2025 11:02
+
+Hi Sarah,
+
+Sorry about that! I've logged the return in our RMA sheet and emailed you
+a prepaid label (check your inbox, subject "Your return label"). Once you
+drop it at any UPS location we'll get an alert and Priya on the warehouse
+team will inspect it when it arrives.
+
+If it checks out (tags on, unworn) we'll either ship the size L right away
+or refund you, whichever you picked below in the return form. If for some
+reason the item comes back damaged or worn, our policy says we can't
+restock it and we'd have to deny the return / refund -- that's rare but it
+happens maybe 1 in 20 times, usually customer just didn't read the "final
+sale if worn" note.
+
+Also fyi -- we use our Shopify order data (in "Order Mgmt System") to look
+up your original order, and log everything about the return itself in a
+separate return request spreadsheet ("Returns Tracker") since our RMA flow
+isn't in Shopify natively.
+
+- Dave, Ops

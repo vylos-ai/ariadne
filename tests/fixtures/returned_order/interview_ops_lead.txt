@@ -1,0 +1,42 @@
+Interview transcript -- Ops Lead (Marcus), 10 Mar 2025, ~15 min, informal
+chat over coffee about how returns actually work day to day. Lightly
+cleaned up, filler words removed. Not verbatim.
+
+Q: Walk me through what happens when a customer wants to return something.
+
+A: Yeah so, honestly it's kind of split across three places right now,
+which is annoying. Customer emails support, could be sarah@ or whoever's
+on support that week, and support logs it -- we call that opening an RMA,
+though "RMA sheet" is really just a row in our Returns Tracker spreadsheet.
+We send them a prepaid label out of Shopify, well, actually the label
+generation is manual too, someone just buys it through the carrier
+website and forwards it. That part could really be automated but isn't
+yet.
+
+Q: Then what?
+
+A: Item comes back to the warehouse, Priya or whoever's covering warehouse
+that day inspects it. She's checking basically two things -- are the tags
+still on, and does it look unworn/undamaged. If yes, it's approved, and
+depending what the customer asked for on the original ticket we either
+reship the right item or process a refund. If no -- tags missing, looks
+worn, whatever -- it's denied, full stop, no refund and no reship. That's
+policy, not really a judgment call, it's written up as our "final sale if
+worn" rule and support's supposed to tell customers about it upfront but
+half the time they don't remember to.
+
+Q: What system records the decision?
+
+A: Priya updates the Returns Tracker with "Approved" or "Denied" and what
+the resolution was. The original order lives in Order Mgmt System though
+-- that's our name for the Shopify backend, basically -- so if it's a
+reship, whoever's on ops (usually me or Dave) has to go create a new order
+in there by hand. That handoff is the annoying part, Priya can't do it
+herself and it means reships sit for a day sometimes waiting on one of us.
+
+Q: What about denied returns -- does the customer get told anything?
+
+A: They're supposed to get an email explaining it was denied because the
+item didn't pass inspection, per the final-sale policy. In practice I
+think that email gets forgotten some of the time, honestly. It's not
+automated, whoever's watching the tracker that day is meant to send it.
