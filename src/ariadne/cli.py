@@ -3,11 +3,21 @@
 import argparse
 import sys
 
+from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
+from ariadne.pipeline import run_extraction_pipeline
+
 SUBCOMMANDS = ("extract", "eval", "validate")
 
 
+def _default_provider() -> ExtractionProvider:
+    """Build the live extraction provider. Kept as a seam for tests to patch."""
+    return AnthropicExtractionProvider()
+
+
 def _extract(args: argparse.Namespace) -> int:
-    print("ariadne extract: not yet implemented")
+    provider = _default_provider()
+    run_extraction_pipeline(args.source, args.output_dir, provider)
+    print(f"ariadne extract: wrote graph + vault to {args.output_dir}")
     return 0
 
 
@@ -27,6 +37,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     extract_parser = subparsers.add_parser(
         "extract", help="Extract a process graph from source material"
+    )
+    extract_parser.add_argument("source", help="Path to the source document")
+    extract_parser.add_argument(
+        "--output-dir",
+        default="output",
+        help="Directory to write graph.json and the vault/ into (default: output)",
     )
     extract_parser.set_defaults(func=_extract)
 
