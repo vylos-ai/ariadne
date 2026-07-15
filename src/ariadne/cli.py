@@ -3,6 +3,7 @@
 import argparse
 import sys
 
+from ariadne.eval import evaluate_paths, format_report
 from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.pipeline import run_extraction_pipeline
@@ -24,7 +25,8 @@ def _extract(args: argparse.Namespace) -> int:
 
 
 def _eval(args: argparse.Namespace) -> int:
-    print("ariadne eval: not yet implemented")
+    report = evaluate_paths(args.candidate, args.gold)
+    print(format_report(report))
     return 0
 
 
@@ -61,6 +63,8 @@ def _build_parser() -> argparse.ArgumentParser:
     eval_parser = subparsers.add_parser(
         "eval", help="Evaluate extraction/resolution quality"
     )
+    eval_parser.add_argument("candidate", help="Path to the candidate graph.json")
+    eval_parser.add_argument("gold", help="Path to the gold-standard graph.json")
     eval_parser.set_defaults(func=_eval)
 
     validate_parser = subparsers.add_parser(

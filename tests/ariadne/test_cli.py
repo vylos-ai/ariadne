@@ -73,3 +73,14 @@ def test_validate_subcommand_exits_nonzero_and_prints_violations(tmp_path, capsy
     captured = capsys.readouterr().out
     assert exit_code != 0
     assert "evidence-does-not-exist" in captured
+
+
+def test_eval_subcommand_prints_metrics(capsys):
+    exit_code = cli.main(["eval", str(GOLD_GRAPH_PATH), str(GOLD_GRAPH_PATH)])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "Nodes" in output
+    assert "Edges" in output
+    assert "Grounding" in output
+    assert "100.0%" in output
