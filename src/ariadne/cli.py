@@ -4,7 +4,9 @@ import argparse
 import sys
 
 from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
+from ariadne.graph_store import InMemoryGraphStore
 from ariadne.pipeline import run_extraction_pipeline
+from ariadne.validation import validate
 
 SUBCOMMANDS = ("extract", "eval", "validate")
 
@@ -27,8 +29,18 @@ def _eval(args: argparse.Namespace) -> int:
 
 
 def _validate(args: argparse.Namespace) -> int:
-    print("ariadne validate: not yet implemented")
-    return 0
+    store = InMemoryGraphStore()
+    store.load(args.graph)
+    violations = validate(store)
+
+    if not violations:
+        print("ariadne validate: no provenance violations found")
+        return 0
+
+    print(f"ariadne validate: {len(violations)} provenance violation(s) found")
+    for violation in violations:
+        print(f"  {violation}")
+    return 1
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -54,6 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser(
         "validate", help="Validate provenance and graph consistency"
     )
+    validate_parser.add_argument("graph", help="Path to a graph.json file")
     validate_parser.set_defaults(func=_validate)
 
     return parser

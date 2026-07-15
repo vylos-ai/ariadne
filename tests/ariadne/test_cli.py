@@ -5,10 +5,14 @@ factory is monkeypatched out and replaced with the offline
 ``FakeExtractionProvider``.
 """
 
+import json
 from pathlib import Path
 
 import ariadne.cli as cli
 from ariadne.extraction import FakeExtractionProvider
+
+FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "returned_order"
+GOLD_GRAPH_PATH = FIXTURE_DIR / "gold_graph.json"
 
 
 def test_extract_subcommand_writes_graph_and_vault(tmp_path, monkeypatch):
@@ -37,3 +41,35 @@ def test_extract_subcommand_default_output_dir(tmp_path, monkeypatch):
 
     assert exit_code == 0
     assert Path("output/graph.json").exists()
+
+
+def test_validate_subcommand_exits_zero_for_clean_graph(capsys):
+    exit_code = cli.main(["validate", str(GOLD_GRAPH_PATH)])
+
+    assert exit_code == 0
+    assert "no provenance violations" in capsys.readouterr().out
+
+
+def test_validate_subcommand_exits_nonzero_and_prints_violations(tmp_path, capsys):
+    graph_path = tmp_path / "graph.json"
+    graph_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "id": "step-a",
+                        "type": "ProcessStep",
+                        "properties": {},
+                        "evidence_ids": ["evidence-does-not-exist"],
+                    }
+                ],
+                "edges": [],
+            }
+        )
+    )
+
+    exit_code = cli.main(["validate", str(graph_path)])
+
+    captured = capsys.readouterr().out
+    assert exit_code != 0
+    assert "evidence-does-not-exist" in captured
