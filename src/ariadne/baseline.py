@@ -22,11 +22,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ariadne.eval import EvalReport, evaluate
-from ariadne.extraction import FakeExtractionProvider
+from ariadne.extraction import ExtractionResult, FakeExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.pipeline import run_extraction_pipeline
+from ariadne.resolution import resolve
 from ariadne.schema import EdgeType, NodeType
 from ariadne.validation import Violation, validate
+from ariadne.vault import render_vault
 
 FIXTURES_DIR = (
     Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "returned_order"
@@ -125,3 +127,152 @@ def evaluate_baseline(output_dir: str | Path) -> BaselineResult:
     violations = validate(graph)
     report = evaluate(graph, load_gold_store())
     return BaselineResult(graph=graph, violations=violations, report=report)
+
+
+# Non-Evidence node label keys that get a slight, realistic wording tweak in
+# ``interview_ops_lead.txt``'s recorded payload -- see
+# ``_with_label_variation``.
+_LABEL_KEYS_TO_VARY = ("name", "summary")
+
+
+def _with_label_variation(payload: dict) -> dict:
+    """Perturb non-Evidence node labels slightly.
+
+    Real source documents describe the same entity with minor wording
+    differences (a trailing period, a slightly different phrasing) rather
+    than byte-identical text. This exercises entity resolution's *fuzzy*
+    label matching (see ``ariadne.labels``) instead of only exact-duplicate
+    collapsing, while staying within the fuzzy-match threshold so the
+    v1 CLI's un-adjudicated ``resolve()`` still merges them.
+    """
+    nodes = []
+    for node in payload["nodes"]:
+        node = dict(node)
+        if node["type"] != "Evidence":
+            properties = dict(node["properties"])
+            for key in _LABEL_KEYS_TO_VARY:
+                if properties.get(key):
+                    properties[key] = f"{properties[key]}."
+            node["properties"] = properties
+        nodes.append(node)
+    return {"nodes": nodes, "edges": payload["edges"]}
+
+
+def _scope_node_evidence_to_source(payload: dict, evidence_id: str) -> dict:
+    """Restrict each non-Evidence node's evidence_ids to this source alone.
+
+    The gold graph often lists several sources per node (an entity mentioned
+    in more than one document). ``recorded_payload_for_source`` carries that
+    full gold evidence list straight through -- fine for the Phase 1 baseline
+    (one un-namespaced pipeline call per source, later merged), but not for a
+    *single* multi-source pipeline call: ids get namespaced per source (see
+    ``run_extraction_pipeline``), so a node here can't yet reference another
+    source's evidence node -- that node isn't part of this source's id map --
+    without the reference dangling. Scoping to this source's own evidence id
+    keeps every reference resolvable within the merged graph.
+    """
+    nodes = []
+    for node in payload["nodes"]:
+        node = dict(node)
+        if node["type"] != "Evidence":
+            node["evidence_ids"] = [
+                e for e in node.get("evidence_ids", []) if e == evidence_id
+            ]
+        nodes.append(node)
+    return {"nodes": nodes, "edges": payload["edges"]}
+
+
+def recorded_payload_for_source_phase2(gold: dict, source_doc: str) -> dict:
+    """Like ``recorded_payload_for_source``, adapted for a single multi-source
+    pipeline run: node evidence scoped to this source, plus a wording tweak
+    for one doc.
+
+    ``interview_ops_lead.txt`` is the end-to-end walkthrough and, per the
+    gold graph, shares most of its entities with the two narrower email
+    fixtures -- exactly the sort of duplicate-across-sources scenario
+    resolution (0012/0013) exists to collapse. Giving its copy a slightly
+    different label wording keeps the merge honest: resolution has to
+    fuzzy-match, not just dedupe identical strings.
+    """
+    evidence_id = _GOLD_EVIDENCE_ID_BY_SOURCE[source_doc]
+    payload = recorded_payload_for_source(gold, source_doc)
+    payload = _scope_node_evidence_to_source(payload, evidence_id)
+    if source_doc == "interview_ops_lead.txt":
+        payload = _with_label_variation(payload)
+    return payload
+
+
+@dataclass
+class _RecordedMultiSourceProvider:
+    """Offline provider dispatching by source text to a per-document payload.
+
+    Unlike the Phase 1 baseline (one provider per ``run_extraction_pipeline``
+    call, one call per source), Phase 2 needs a *single* multi-source
+    pipeline run -- so ids get namespaced per source and duplicate entities
+    across documents survive the merge for resolution to collapse -- which
+    means a single provider instance must know how to answer for each of the
+    several source texts passed to ``run_extraction_pipeline``.
+    """
+
+    payload_by_text: dict[str, dict]
+
+    def extract(self, text: str) -> ExtractionResult:
+        return FakeExtractionProvider(self.payload_by_text[text]).extract(text)
+
+
+def run_baseline_phase2(output_dir: str | Path) -> InMemoryGraphStore:
+    """Run one multi-source pipeline call over all three Phase 0 fixtures.
+
+    A single ``run_extraction_pipeline`` call over all three source paths
+    namespaces each source's extracted node ids, so entities shared across
+    documents (per the gold graph's evidence overlaps) land in the merged
+    graph as distinct-but-duplicate nodes -- exactly what ``resolve()`` is
+    meant to collapse.
+    """
+    gold = _load_gold_dict()
+    source_paths = [FIXTURES_DIR / source_doc for source_doc in SOURCE_DOCS]
+    payload_by_text = {
+        source_path.read_text(): recorded_payload_for_source_phase2(
+            gold, source_path.name
+        )
+        for source_path in source_paths
+    }
+    provider = _RecordedMultiSourceProvider(payload_by_text)
+    return run_extraction_pipeline(source_paths, output_dir, provider)
+
+
+@dataclass
+class Phase2BaselineResult:
+    unresolved_graph: InMemoryGraphStore
+    resolved_graph: InMemoryGraphStore
+    unresolved_violations: list[Violation]
+    resolved_violations: list[Violation]
+    unresolved_report: EvalReport
+    resolved_report: EvalReport
+
+
+def evaluate_phase2_baseline(output_dir: str | Path) -> Phase2BaselineResult:
+    """Run the Phase 2 baseline: multi-source extract -> resolve -> eval.
+
+    Evals both the unresolved (pre-resolution) and resolved graphs against
+    the gold standard so resolution's effect on quality is directly
+    comparable, mirroring how 0010 closed the Phase 1 loop.
+    """
+    output_dir = Path(output_dir)
+    unresolved = run_baseline_phase2(output_dir / "unresolved")
+    resolved = resolve(unresolved)
+
+    resolved_dir = output_dir / "resolved"
+    resolved_dir.mkdir(parents=True, exist_ok=True)
+    resolved.save(resolved_dir / "graph.json")
+    render_vault(resolved, resolved_dir / "vault")
+
+    gold = load_gold_store()
+    return Phase2BaselineResult(
+        unresolved_graph=unresolved,
+        resolved_graph=resolved,
+        unresolved_violations=validate(unresolved),
+        resolved_violations=validate(resolved),
+        unresolved_report=evaluate(unresolved, gold),
+        resolved_report=evaluate(resolved, gold),
+    )

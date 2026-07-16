@@ -115,3 +115,54 @@ def test_eval_subcommand_prints_metrics(capsys):
     assert "Edges" in output
     assert "Grounding" in output
     assert "100.0%" in output
+
+
+def test_resolve_subcommand_writes_resolved_graph_and_vault(tmp_path):
+    graph_path = tmp_path / "graph.json"
+    graph_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "id": "ev-1",
+                        "type": "Evidence",
+                        "properties": {"text": "some source text"},
+                        "evidence_ids": [],
+                    },
+                    {
+                        "id": "role-support-a",
+                        "type": "Role",
+                        "properties": {"name": "Support"},
+                        "evidence_ids": ["ev-1"],
+                    },
+                    {
+                        "id": "role-support-b",
+                        "type": "Role",
+                        "properties": {"name": "Support"},
+                        "evidence_ids": ["ev-1"],
+                    },
+                ],
+                "edges": [],
+            }
+        )
+    )
+    output_dir = tmp_path / "out"
+
+    exit_code = cli.main(["resolve", str(graph_path), "--output-dir", str(output_dir)])
+
+    assert exit_code == 0
+    resolved = json.loads((output_dir / "graph.json").read_text())
+    role_nodes = [n for n in resolved["nodes"] if n["type"] == "Role"]
+    assert len(role_nodes) == 1
+    assert (output_dir / "vault").is_dir()
+    assert list((output_dir / "vault").glob("*.md"))
+
+
+def test_resolve_subcommand_output_passes_validation(tmp_path, capsys):
+    output_dir = tmp_path / "out"
+    cli.main(["resolve", str(GOLD_GRAPH_PATH), "--output-dir", str(output_dir)])
+
+    exit_code = cli.main(["validate", str(output_dir / "graph.json")])
+
+    assert exit_code == 0
+    assert "no provenance violations" in capsys.readouterr().out

@@ -3,13 +3,17 @@
 import argparse
 import sys
 
+from pathlib import Path
+
 from ariadne.eval import evaluate_paths, format_report
 from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.pipeline import run_extraction_pipeline
+from ariadne.resolution import resolve
 from ariadne.validation import validate
+from ariadne.vault import render_vault
 
-SUBCOMMANDS = ("extract", "eval", "validate")
+SUBCOMMANDS = ("extract", "eval", "validate", "resolve")
 
 
 def _default_provider() -> ExtractionProvider:
@@ -45,6 +49,20 @@ def _validate(args: argparse.Namespace) -> int:
     return 1
 
 
+def _resolve(args: argparse.Namespace) -> int:
+    store = InMemoryGraphStore()
+    store.load(args.graph)
+    resolved = resolve(store)
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    resolved.save(output_dir / "graph.json")
+    render_vault(resolved, output_dir / "vault")
+
+    print(f"ariadne resolve: wrote resolved graph + vault to {output_dir}")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ariadne")
     subparsers = parser.add_subparsers(dest="command")
@@ -74,6 +92,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     validate_parser.add_argument("graph", help="Path to a graph.json file")
     validate_parser.set_defaults(func=_validate)
+
+    resolve_parser = subparsers.add_parser(
+        "resolve", help="Resolve duplicate/near-duplicate entities in a graph"
+    )
+    resolve_parser.add_argument("graph", help="Path to a graph.json file")
+    resolve_parser.add_argument(
+        "--output-dir",
+        default="output",
+        help="Directory to write the resolved graph.json and vault/ into "
+        "(default: output)",
+    )
+    resolve_parser.set_defaults(func=_resolve)
 
     return parser
 
