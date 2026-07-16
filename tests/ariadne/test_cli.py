@@ -30,6 +30,37 @@ def test_extract_subcommand_writes_graph_and_vault(tmp_path, monkeypatch):
     assert list((output_dir / "vault").glob("*.md"))
 
 
+def test_extract_subcommand_accepts_multiple_sources_and_merges_graph(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(cli, "_default_provider", lambda: FakeExtractionProvider())
+
+    source_a = tmp_path / "a.txt"
+    source_a.write_text("We receive the returned order and log it.")
+    source_b = tmp_path / "b.txt"
+    source_b.write_text("We inspect the returned item for damage.")
+    output_dir = tmp_path / "out"
+
+    exit_code = cli.main(
+        [
+            "extract",
+            str(source_a),
+            str(source_b),
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    assert exit_code == 0
+    graph = json.loads((output_dir / "graph.json").read_text())
+    evidence_sources = {
+        n["properties"]["source"]
+        for n in graph["nodes"]
+        if n["type"] == "Evidence" and "source" in n["properties"]
+    }
+    assert evidence_sources == {str(source_a), str(source_b)}
+
+
 def test_extract_subcommand_default_output_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_default_provider", lambda: FakeExtractionProvider())
     monkeypatch.chdir(tmp_path)

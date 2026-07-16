@@ -19,7 +19,7 @@ def _default_provider() -> ExtractionProvider:
 
 def _extract(args: argparse.Namespace) -> int:
     provider = _default_provider()
-    run_extraction_pipeline(args.source, args.output_dir, provider)
+    run_extraction_pipeline(args.sources, args.output_dir, provider)
     print(f"ariadne extract: wrote graph + vault to {args.output_dir}")
     return 0
 
@@ -52,7 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
     extract_parser = subparsers.add_parser(
         "extract", help="Extract a process graph from source material"
     )
-    extract_parser.add_argument("source", help="Path to the source document")
+    extract_parser.add_argument(
+        "sources", nargs="+", help="Path(s) to one or more source documents"
+    )
     extract_parser.add_argument(
         "--output-dir",
         default="output",
