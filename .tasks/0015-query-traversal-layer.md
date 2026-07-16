@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 priority: medium
 owner:
 created: 2026-07-16

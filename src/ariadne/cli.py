@@ -9,11 +9,14 @@ from ariadne.eval import evaluate_paths, format_report
 from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.pipeline import run_extraction_pipeline
+from ariadne.query import describe, find_nodes, path, walk, what_happens
 from ariadne.resolution import resolve
+from ariadne.schema import EdgeType
 from ariadne.validation import validate
 from ariadne.vault import render_vault
 
-SUBCOMMANDS = ("extract", "eval", "validate", "resolve")
+SUBCOMMANDS = ("extract", "eval", "validate", "resolve", "query")
+QUERY_KINDS = ("find", "describe", "walk", "path", "what-happens")
 
 
 def _default_provider() -> ExtractionProvider:
@@ -63,6 +66,59 @@ def _resolve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _query(args: argparse.Namespace) -> int:
+    store = InMemoryGraphStore()
+    store.load(args.graph)
+    kind = args.kind
+    rest = args.args
+
+    if kind == "find":
+        text = " ".join(rest)
+        for scored in find_nodes(store, text):
+            print(f"{scored.score:.2f}  {scored.node.id}")
+        return 0
+
+    if kind == "describe":
+        node, facts = describe(store, rest[0])
+        if node is None:
+            print(f"ariadne query: no such node {rest[0]!r}")
+            return 1
+        print(f"{node.id} ({node.type.value})")
+        for fact in facts:
+            arrow = "->" if fact.direction == "out" else "<-"
+            print(
+                f"  {fact.edge.type.value} {arrow} {fact.neighbor.id} "
+                f"({fact.neighbor_label})  evidence={fact.evidence_ids}"
+            )
+        return 0
+
+    if kind == "walk":
+        edge_type = EdgeType(rest[1]) if len(rest) > 1 else None
+        direction = rest[2] if len(rest) > 2 else "both"
+        facts = walk(store, rest[0], edge_type=edge_type, direction=direction)
+        for fact in facts:
+            arrow = "->" if fact.direction == "out" else "<-"
+            print(f"  {fact.edge.type.value} {arrow} {fact.neighbor.id}")
+        return 0
+
+    if kind == "path":
+        result = path(store, rest[0], rest[1])
+        if not result.nodes:
+            print(f"ariadne query: no path from {rest[0]!r} to {rest[1]!r}")
+            return 1
+        print(" -> ".join(node.id for node in result.nodes))
+        return 0
+
+    if kind == "what-happens":
+        facts = what_happens(store, rest[0])
+        for fact in facts:
+            print(f"  {fact.edge.type.value} -> {fact.neighbor.id}")
+        return 0
+
+    print(f"ariadne query: unknown kind {kind!r}, expected one of {QUERY_KINDS}")
+    return 1
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ariadne")
     subparsers = parser.add_subparsers(dest="command")
@@ -104,6 +160,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "(default: output)",
     )
     resolve_parser.set_defaults(func=_resolve)
+
+    query_parser = subparsers.add_parser(
+        "query", help="Ask a graph question (find/describe/walk/path/what-happens)"
+    )
+    query_parser.add_argument("graph", help="Path to a graph.json file")
+    query_parser.add_argument("kind", choices=QUERY_KINDS, help="Kind of query")
+    query_parser.add_argument(
+        "args", nargs="*", help="Arguments for the chosen query kind"
+    )
+    query_parser.set_defaults(func=_query)
 
     return parser
 

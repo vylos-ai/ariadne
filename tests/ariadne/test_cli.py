@@ -166,3 +166,57 @@ def test_resolve_subcommand_output_passes_validation(tmp_path, capsys):
 
     assert exit_code == 0
     assert "no provenance violations" in capsys.readouterr().out
+
+
+def test_query_find_prints_ranked_matches(capsys):
+    exit_code = cli.main(["query", str(GOLD_GRAPH_PATH), "find", "warehouse"])
+
+    assert exit_code == 0
+    assert "role-warehouse" in capsys.readouterr().out
+
+
+def test_query_describe_prints_node_and_evidence(capsys):
+    exit_code = cli.main(
+        ["query", str(GOLD_GRAPH_PATH), "describe", "step-inspect-item"]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "step-inspect-item" in output
+    assert "evidence" in output
+
+
+def test_query_describe_unknown_node_exits_nonzero(capsys):
+    exit_code = cli.main(
+        ["query", str(GOLD_GRAPH_PATH), "describe", "node-does-not-exist"]
+    )
+
+    assert exit_code != 0
+    assert "no such node" in capsys.readouterr().out
+
+
+def test_query_walk_prints_neighbors(capsys):
+    exit_code = cli.main(["query", str(GOLD_GRAPH_PATH), "walk", "step-open-rma"])
+
+    assert exit_code == 0
+    assert "step-send-label" in capsys.readouterr().out
+
+
+def test_query_path_prints_node_chain(capsys):
+    exit_code = cli.main(
+        ["query", str(GOLD_GRAPH_PATH), "path", "step-open-rma", "step-process-refund"]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "step-open-rma" in output
+    assert "step-process-refund" in output
+
+
+def test_query_what_happens_prints_downstream_nodes(capsys):
+    exit_code = cli.main(
+        ["query", str(GOLD_GRAPH_PATH), "what-happens", "step-open-rma"]
+    )
+
+    assert exit_code == 0
+    assert "step-send-label" in capsys.readouterr().out
