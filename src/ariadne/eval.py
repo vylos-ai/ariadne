@@ -11,19 +11,11 @@ quality is measured, so regressions are caught early.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 from pathlib import Path
 
 from ariadne.graph_store import InMemoryGraphStore
+from ariadne.labels import _labels_match, _node_label
 from ariadne.schema import Edge, EdgeType, Node, NodeType
-
-# Property keys checked, in order, to find a node's human-readable label.
-# Most node types use "name"; Evidence nodes use "summary"/"source" instead.
-_LABEL_KEYS = ("name", "label", "summary", "source")
-
-# Ratio threshold (difflib.SequenceMatcher) above which two normalized labels
-# are considered the same entity. Simple and dependency-free -- YAGNI, no ML.
-_FUZZY_MATCH_THRESHOLD = 0.85
 
 
 @dataclass
@@ -38,27 +30,6 @@ class EvalReport:
     node_metrics: PRF1
     edge_metrics: PRF1
     grounding: float
-
-
-def _node_label(node: Node) -> str:
-    for key in _LABEL_KEYS:
-        value = node.properties.get(key)
-        if value:
-            return str(value)
-    return ""
-
-
-def _normalize(label: str) -> str:
-    return label.strip().lower()
-
-
-def _labels_match(a: str, b: str) -> bool:
-    a, b = _normalize(a), _normalize(b)
-    if not a or not b:
-        return a == b
-    if a == b:
-        return True
-    return SequenceMatcher(None, a, b).ratio() >= _FUZZY_MATCH_THRESHOLD
 
 
 def _all_nodes(store: InMemoryGraphStore) -> list[Node]:
