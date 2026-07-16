@@ -9,6 +9,7 @@ from ariadne.eval import evaluate_paths, format_report
 from ariadne.export import to_mermaid
 from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
+from ariadne.mcp_server import build_server
 from ariadne.pipeline import run_extraction_pipeline
 from ariadne.query import describe, find_nodes, path, walk, what_happens
 from ariadne.resolution import resolve
@@ -16,7 +17,7 @@ from ariadne.schema import EdgeType
 from ariadne.validation import validate
 from ariadne.vault import render_vault
 
-SUBCOMMANDS = ("extract", "eval", "validate", "resolve", "query", "export")
+SUBCOMMANDS = ("extract", "eval", "validate", "resolve", "query", "export", "mcp")
 QUERY_KINDS = ("find", "describe", "walk", "path", "what-happens")
 
 # Exporters keyed by --format value. Mermaid is the only projection for now
@@ -140,6 +141,14 @@ def _export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mcp(args: argparse.Namespace) -> int:
+    store = InMemoryGraphStore()
+    store.load(args.graph)
+    server = build_server(store)
+    server.run()  # blocks, serving over stdio
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ariadne")
     subparsers = parser.add_subparsers(dest="command")
@@ -202,6 +211,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Projection format to render (default: mermaid)",
     )
     export_parser.set_defaults(func=_export)
+
+    mcp_parser = subparsers.add_parser(
+        "mcp", help="Serve the query layer as an MCP server over stdio"
+    )
+    mcp_parser.add_argument("graph", help="Path to a graph.json file")
+    mcp_parser.set_defaults(func=_mcp)
 
     return parser
 
