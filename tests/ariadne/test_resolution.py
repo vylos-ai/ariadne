@@ -6,7 +6,7 @@ input store, and given the same input it must produce byte-identical output.
 """
 
 from ariadne.graph_store import InMemoryGraphStore
-from ariadne.resolution import resolve
+from ariadne.resolution import FakeAdjudicator, resolve
 from ariadne.schema import Edge, EdgeType, Node, NodeType
 from ariadne.validation import validate
 
@@ -161,6 +161,52 @@ def test_resolve_is_deterministic(tmp_path):
     resolve(store).save(path2)
 
     assert path1.read_text() == path2.read_text()
+
+
+def test_resolve_above_threshold_pair_never_consults_adjudicator():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "open rma"))
+
+    class ExplodingAdjudicator:
+        def same_entity(self, node_a: Node, node_b: Node) -> bool:
+            raise AssertionError("adjudicator should not be consulted")
+
+    resolved = resolve(store, adjudicator=ExplodingAdjudicator())
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 1
+
+
+def test_resolve_band_pair_merged_when_adjudicator_affirms():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "Open Return"))
+    adjudicator = FakeAdjudicator(affirm={frozenset({"a-step", "b-step"})})
+
+    resolved = resolve(store, adjudicator=adjudicator)
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 1
+
+
+def test_resolve_band_pair_kept_separate_when_adjudicator_denies():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "Open Return"))
+    adjudicator = FakeAdjudicator(affirm=set())
+
+    resolved = resolve(store, adjudicator=adjudicator)
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 2
+
+
+def test_resolve_band_pair_unmerged_when_no_adjudicator_given():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "Open Return"))
+
+    resolved = resolve(store)
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 2
 
 
 def test_resolve_output_passes_validation():

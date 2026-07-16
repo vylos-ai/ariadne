@@ -33,10 +33,19 @@ def _normalize(label: str) -> str:
     return label.strip().lower()
 
 
-def _labels_match(a: str, b: str) -> bool:
+def _label_similarity(a: str, b: str) -> float:
+    """Similarity ratio in [0.0, 1.0] between two normalized labels.
+
+    Empty-vs-empty (or identical) labels score 1.0; empty-vs-non-empty
+    scores 0.0. Otherwise, ``difflib.SequenceMatcher`` ratio.
+    """
     a, b = _normalize(a), _normalize(b)
     if not a or not b:
-        return a == b
+        return 1.0 if a == b else 0.0
     if a == b:
-        return True
-    return SequenceMatcher(None, a, b).ratio() >= _FUZZY_MATCH_THRESHOLD
+        return 1.0
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def _labels_match(a: str, b: str) -> bool:
+    return _label_similarity(a, b) >= _FUZZY_MATCH_THRESHOLD
