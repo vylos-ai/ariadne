@@ -220,3 +220,19 @@ def test_query_what_happens_prints_downstream_nodes(capsys):
 
     assert exit_code == 0
     assert "step-send-label" in capsys.readouterr().out
+
+
+def test_export_subcommand_prints_mermaid_to_stdout(capsys):
+    exit_code = cli.main(["export", str(GOLD_GRAPH_PATH)])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert output.startswith("flowchart TD")
+    assert "evidence" not in output.lower()
+
+
+def test_export_subcommand_rejects_unknown_format(capsys):
+    exit_code = cli.main(["export", str(GOLD_GRAPH_PATH), "--format", "bpmn"])
+
+    assert exit_code != 0
+    assert "bpmn" in capsys.readouterr().err.lower()

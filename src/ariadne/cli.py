@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from ariadne.eval import evaluate_paths, format_report
+from ariadne.export import to_mermaid
 from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.pipeline import run_extraction_pipeline
@@ -15,8 +16,12 @@ from ariadne.schema import EdgeType
 from ariadne.validation import validate
 from ariadne.vault import render_vault
 
-SUBCOMMANDS = ("extract", "eval", "validate", "resolve", "query")
+SUBCOMMANDS = ("extract", "eval", "validate", "resolve", "query", "export")
 QUERY_KINDS = ("find", "describe", "walk", "path", "what-happens")
+
+# Exporters keyed by --format value. Mermaid is the only projection for now
+# (BPMN-XML stays out of scope until someone asks for it -- see task 0017).
+_EXPORTERS = {"mermaid": to_mermaid}
 
 
 def _default_provider() -> ExtractionProvider:
@@ -119,6 +124,22 @@ def _query(args: argparse.Namespace) -> int:
     return 1
 
 
+def _export(args: argparse.Namespace) -> int:
+    exporter = _EXPORTERS.get(args.format)
+    if exporter is None:
+        print(
+            f"ariadne export: unknown format {args.format!r} "
+            f"(choose from {', '.join(sorted(_EXPORTERS))})",
+            file=sys.stderr,
+        )
+        return 1
+
+    store = InMemoryGraphStore()
+    store.load(args.graph)
+    print(exporter(store))
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ariadne")
     subparsers = parser.add_subparsers(dest="command")
@@ -170,6 +191,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "args", nargs="*", help="Arguments for the chosen query kind"
     )
     query_parser.set_defaults(func=_query)
+
+    export_parser = subparsers.add_parser(
+        "export", help="Render a projection (e.g. mermaid) from a graph.json"
+    )
+    export_parser.add_argument("graph", help="Path to a graph.json file")
+    export_parser.add_argument(
+        "--format",
+        default="mermaid",
+        help="Projection format to render (default: mermaid)",
+    )
+    export_parser.set_defaults(func=_export)
 
     return parser
 
