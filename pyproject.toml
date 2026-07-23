@@ -3,8 +3,9 @@ name = "ariadne"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "anthropic",
+    "logfire>=4.38.0",
     "mcp>=1.28.1",
+    "pydantic-ai-slim[anthropic,openai]>=2.16.0",
     "pyyaml",
     "textual",
 ]
