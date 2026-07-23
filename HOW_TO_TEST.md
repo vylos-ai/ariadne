@@ -20,8 +20,9 @@ set -a; source .env; set +a
 ## 1. Automated suite
 
 ```bash
-uv run pytest          # 170 tests, incl. offline Phase 1 + Phase 2 baselines
-uv run ruff check .
+uv run pytest                # 170 tests, incl. offline Phase 1 + Phase 2 baselines
+uv run ruff check .          # lint
+uv run ruff format --check . # formatting (conventions pinned in pyproject.toml)
 ```
 
 The Phase 2 baseline is the interesting regression gate — full

@@ -218,10 +218,21 @@ Task status transitions:
 ```bash
 uv run pytest                          # Run all tests
 uv run ruff check .                    # Lint check
+uv run ruff format --check .           # Formatting check (fails on drift)
 uv run ruff format .                   # Format code
 python scripts/kanban.py --simple      # View task board (plain text)
 python scripts/kanban.py               # View task board (TUI)
 ```
+
+All three checks must pass before a task moves to `review`:
+
+```bash
+uv run pytest && uv run ruff check . && uv run ruff format --check .
+```
+
+Formatter conventions are pinned in `[tool.ruff.format]` in `pyproject.toml`
+(double quotes, spaces, LF, line length 88) so style stays identical across
+subagent-authored files.
 
 ## Conventions
 
