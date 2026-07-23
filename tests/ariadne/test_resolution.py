@@ -5,10 +5,28 @@ effort should go." ``resolve()`` is a pure function -- it must not mutate the
 input store, and given the same input it must produce byte-identical output.
 """
 
+import pydantic_ai.models as pydantic_ai_models
+import pytest
+from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
+
 from ariadne.graph_store import InMemoryGraphStore
-from ariadne.resolution import FakeAdjudicator, resolve
+from ariadne.resolution import (
+    AMBIGUITY_FLOOR,
+    FakeAdjudicator,
+    PydanticAIAdjudicator,
+    resolve,
+)
 from ariadne.schema import Edge, EdgeType, Node, NodeType
 from ariadne.validation import validate
+
+
+@pytest.fixture(autouse=True)
+def _no_live_model_requests():
+    previous = pydantic_ai_models.ALLOW_MODEL_REQUESTS
+    pydantic_ai_models.ALLOW_MODEL_REQUESTS = False
+    yield
+    pydantic_ai_models.ALLOW_MODEL_REQUESTS = previous
 
 
 def _step(node_id: str, name: str, evidence_ids: list[str] | None = None) -> Node:
@@ -235,3 +253,68 @@ def test_resolve_output_passes_validation():
     resolved = resolve(store)
 
     assert validate(resolved) == []
+
+
+def test_pydanticai_adjudicator_true_verdict_merges_band_pair():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "Open Return"))
+    adjudicator = PydanticAIAdjudicator(
+        model=TestModel(custom_output_args={"same_entity": True, "reason": "same"})
+    )
+
+    resolved = resolve(store, adjudicator=adjudicator)
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 1
+
+
+def test_pydanticai_adjudicator_false_verdict_keeps_band_pair_separate():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "Open Return"))
+    adjudicator = PydanticAIAdjudicator(
+        model=TestModel(
+            custom_output_args={"same_entity": False, "reason": "different"}
+        )
+    )
+
+    resolved = resolve(store, adjudicator=adjudicator)
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 2
+
+
+def test_pydanticai_adjudicator_not_consulted_below_ambiguity_floor():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "Completely unrelated widget assembly"))
+    calls: list = []
+
+    def fn(messages, info: AgentInfo):
+        calls.append(messages)
+        raise AssertionError("adjudicator should not be consulted")
+
+    adjudicator = PydanticAIAdjudicator(model=FunctionModel(fn))
+
+    resolved = resolve(store, adjudicator=adjudicator)
+
+    assert not calls
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 2
+
+
+def test_pydanticai_adjudicator_not_consulted_at_or_above_auto_merge_threshold():
+    store = InMemoryGraphStore()
+    store.add_node(_step("a-step", "Open RMA"))
+    store.add_node(_step("b-step", "open rma"))
+
+    def fn(messages, info: AgentInfo):
+        raise AssertionError("adjudicator should not be consulted")
+
+    adjudicator = PydanticAIAdjudicator(model=FunctionModel(fn))
+
+    resolved = resolve(store, adjudicator=adjudicator)
+
+    assert len(resolved.by_type(NodeType.PROCESS_STEP)) == 1
+
+
+def test_ambiguity_floor_is_unchanged():
+    assert AMBIGUITY_FLOOR == 0.55

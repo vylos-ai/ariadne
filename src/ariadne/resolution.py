@@ -14,10 +14,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-import anthropic
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
 
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.labels import _FUZZY_MATCH_THRESHOLD, _label_similarity, _node_label
+from ariadne.llm import build_model
 from ariadne.schema import Edge, EdgeType, Node, NodeType
 
 # Below this similarity, two labels are considered clearly distinct and are
@@ -50,31 +53,6 @@ class FakeAdjudicator:
         return frozenset({node_a.id, node_b.id}) in self.affirm
 
 
-# Same model convention as ``ariadne.extraction.AnthropicExtractionProvider``.
-MODEL = "claude-sonnet-4-5-20250929"
-
-_TOOL_NAME = "record_same_entity_verdict"
-
-_TOOL_SCHEMA = {
-    "name": _TOOL_NAME,
-    "description": (
-        "Record whether two candidate process-graph nodes refer to the "
-        "same real-world entity (e.g. the same team, system, or step "
-        "described two different ways)."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "same_entity": {
-                "type": "boolean",
-                "description": "True if the two nodes are the same entity.",
-            },
-        },
-        "required": ["same_entity"],
-    },
-}
-
-
 def _describe_node(node: Node) -> str:
     return (
         f"type={node.type.value}, label={_node_label(node)!r}, "
@@ -82,44 +60,49 @@ def _describe_node(node: Node) -> str:
     )
 
 
-class AnthropicAdjudicator:
-    """Real adjudicator: wraps the Anthropic API behind
+class SameEntityVerdict(BaseModel):
+    """Structured verdict from the adjudicator agent."""
+
+    same_entity: bool = Field(
+        description="True if the two nodes are the same real-world entity."
+    )
+    reason: str = Field(description="Brief justification for the verdict.")
+
+
+_INSTRUCTIONS = (
+    "Decide whether two candidate process-graph nodes refer to the same "
+    "real-world entity (e.g. the same team, system, or step described two "
+    "different ways). Respond with a structured verdict."
+)
+
+
+class PydanticAIAdjudicator:
+    """Real adjudicator: wraps a Pydantic AI ``Agent`` behind
     ``ResolutionAdjudicator``.
 
-    Uses tool-use (structured output) so the verdict is a plain boolean. A
-    client must be supplied explicitly in tests (a mock) to guarantee no
-    live API calls are made; when omitted, a real ``anthropic.Anthropic()``
-    client is constructed.
+    Provider-agnostic -- the underlying model is whatever ``build_model()``
+    (see ``ariadne.llm``) resolves from configuration. Structured output is
+    enforced by pydantic (``SameEntityVerdict``); a Pydantic AI test double
+    (``TestModel``/``FunctionModel``) can be passed directly as ``model=``
+    in tests to guarantee no live API calls are made.
     """
 
-    def __init__(
-        self, client: anthropic.Anthropic | None = None, model: str = MODEL
-    ) -> None:
-        self._client = client if client is not None else anthropic.Anthropic()
-        self._model = model
+    def __init__(self, model: str | OpenAIChatModel | None = None) -> None:
+        self.agent = Agent(
+            model if model is not None else build_model(),
+            output_type=SameEntityVerdict,
+            instructions=_INSTRUCTIONS,
+        )
 
     def same_entity(self, node_a: Node, node_b: Node) -> bool:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=1024,
-            tools=[_TOOL_SCHEMA],
-            tool_choice={"type": "tool", "name": _TOOL_NAME},
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        "Do these two process-graph nodes refer to the same "
-                        f"real-world entity? Use the {_TOOL_NAME} tool.\n\n"
-                        f"Node A: {_describe_node(node_a)}\n"
-                        f"Node B: {_describe_node(node_b)}"
-                    ),
-                }
-            ],
+        prompt = (
+            "Do these two process-graph nodes refer to the same real-world "
+            "entity?\n\n"
+            f"Node A: {_describe_node(node_a)}\n"
+            f"Node B: {_describe_node(node_b)}"
         )
-        for block in response.content:
-            if getattr(block, "type", None) == "tool_use":
-                return bool(block.input["same_entity"])
-        raise ValueError("Anthropic response did not contain a tool_use block")
+        result = self.agent.run_sync(prompt)
+        return result.output.same_entity
 
 
 def _all_nodes(store: InMemoryGraphStore) -> list[Node]:

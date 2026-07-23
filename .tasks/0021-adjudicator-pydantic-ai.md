@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 priority: high
 owner:
 created: 2026-07-23
@@ -20,21 +20,21 @@ never been reachable from the command line.
 
 ## Acceptance Criteria
 
-- [ ] `PydanticAIAdjudicator` implements the existing `ResolutionAdjudicator`
+- [x] `PydanticAIAdjudicator` implements the existing `ResolutionAdjudicator`
       protocol and uses `output_type=SameEntityVerdict` (a `BaseModel` with
       `same_entity: bool` and `reason: str`) instead of parsing free text
-- [ ] `AnthropicAdjudicator` and the `anthropic` import are removed from
+- [x] `AnthropicAdjudicator` and the `anthropic` import are removed from
       `resolution.py`
-- [ ] `ResolutionAdjudicator`, `FakeAdjudicator`, `AMBIGUITY_FLOOR` and the
+- [x] `ResolutionAdjudicator`, `FakeAdjudicator`, `AMBIGUITY_FLOOR` and the
       union-find clustering core are unchanged
-- [ ] `ariadne resolve --adjudicate` passes `PydanticAIAdjudicator()` into
+- [x] `ariadne resolve --adjudicate` passes `PydanticAIAdjudicator()` into
       `resolve()`; without the flag, behaviour is byte-identical to today
       (conservative no-merge in the ambiguity band)
-- [ ] Tests cover: verdict `True` merges an ambiguity-band pair, verdict `False`
+- [x] Tests cover: verdict `True` merges an ambiguity-band pair, verdict `False`
       does not, and the adjudicator is not consulted outside the band
       `[AMBIGUITY_FLOOR, 0.85)` — using pydantic-ai test doubles, no network
-- [ ] Phase 2 baseline metrics unchanged
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
+- [x] Phase 2 baseline metrics unchanged
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
 
 ## Notes
 

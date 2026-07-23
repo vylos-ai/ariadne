@@ -168,6 +168,56 @@ def test_resolve_subcommand_output_passes_validation(tmp_path, capsys):
     assert "no provenance violations" in capsys.readouterr().out
 
 
+def test_resolve_subcommand_without_adjudicate_flag_never_constructs_adjudicator(
+    monkeypatch, tmp_path
+):
+    def _explode():
+        raise AssertionError("adjudicator should not be constructed")
+
+    monkeypatch.setattr(cli, "PydanticAIAdjudicator", _explode)
+    output_dir = tmp_path / "out"
+
+    exit_code = cli.main(
+        [
+            "resolve",
+            str(GOLD_GRAPH_PATH),
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    assert exit_code == 0
+
+
+def test_resolve_subcommand_with_adjudicate_flag_constructs_adjudicator(
+    monkeypatch, tmp_path
+):
+    constructed = []
+
+    class _RecordingAdjudicator:
+        def __init__(self):
+            constructed.append(self)
+
+        def same_entity(self, node_a, node_b):
+            return False
+
+    monkeypatch.setattr(cli, "PydanticAIAdjudicator", _RecordingAdjudicator)
+    output_dir = tmp_path / "out"
+
+    exit_code = cli.main(
+        [
+            "resolve",
+            str(GOLD_GRAPH_PATH),
+            "--output-dir",
+            str(output_dir),
+            "--adjudicate",
+        ]
+    )
+
+    assert exit_code == 0
+    assert len(constructed) == 1
+
+
 def test_query_find_prints_ranked_matches(capsys):
     exit_code = cli.main(["query", str(GOLD_GRAPH_PATH), "find", "warehouse"])
 

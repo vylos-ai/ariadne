@@ -12,7 +12,7 @@ from ariadne.graph_store import InMemoryGraphStore
 from ariadne.mcp_server import build_server
 from ariadne.pipeline import run_extraction_pipeline
 from ariadne.query import describe, find_nodes, path, walk, what_happens
-from ariadne.resolution import resolve
+from ariadne.resolution import PydanticAIAdjudicator, resolve
 from ariadne.schema import EdgeType
 from ariadne.validation import validate
 from ariadne.vault import render_vault
@@ -61,7 +61,8 @@ def _validate(args: argparse.Namespace) -> int:
 def _resolve(args: argparse.Namespace) -> int:
     store = InMemoryGraphStore()
     store.load(args.graph)
-    resolved = resolve(store)
+    adjudicator = PydanticAIAdjudicator() if args.adjudicate else None
+    resolved = resolve(store, adjudicator=adjudicator)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -188,6 +189,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default="output",
         help="Directory to write the resolved graph.json and vault/ into "
         "(default: output)",
+    )
+    resolve_parser.add_argument(
+        "--adjudicate",
+        action="store_true",
+        help="Consult an LLM adjudicator for ambiguity-band pairs (spends API "
+        "credits; off by default).",
     )
     resolve_parser.set_defaults(func=_resolve)
 
