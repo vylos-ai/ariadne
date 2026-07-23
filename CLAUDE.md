@@ -37,8 +37,8 @@ target, not a data model.
 ### Two-layer storage model
 
 1. **Graph store (source of truth)** — nodes and typed edges, queryable and
-   traversable. Start with a property graph (Neo4j, or Kùzu/SQLite-graph for
-   a lighter self-hosted option — decide during setup, see Open Questions).
+   traversable. A property graph, self-hosted on SQLite (decided — see Open
+   Questions); traversal is implemented in Python, not a query engine.
 2. **Markdown vault (human + LLM projection)** — every node materializes as
    a markdown file with YAML frontmatter (structured properties) + prose +
    wiki-style links (`[[node-id]]`) to related nodes. Git-native, diffable,
@@ -138,11 +138,19 @@ Broaden connectors, add the human-in-the-loop review/correction interface.
 
 ## Open questions to resolve before/during Phase 0
 
-- Graph store choice: Neo4j (mature, Cypher, heavier ops) vs. Kùzu or an
-  embedded/SQLite-based graph (lighter, easier self-hosting story for the
-  target SMB customer) vs. just modeling it in Postgres with a graph
-  extension. Bias toward the lightest thing that supports multi-hop
-  traversal well, given the target customer can't run a Neo4j cluster.
+- Graph store choice: **decided — stdlib SQLite** (`src/ariadne/sqlite_store.py`,
+  task 0023). Kùzu, the embedded-graph option this question originally
+  favored, was archived by its vendor in October 2025, so it's off the
+  table. Neo4j and a Postgres graph extension were rejected for the same
+  reason they were always going to be: the target SMB customer can't run a
+  Neo4j cluster, and neither buys anything here — all multi-hop traversal
+  already lives in Python in `query.py`, so the store only needs to be
+  durable, indexed key/value storage, not a Cypher-capable query engine.
+  SQLite gives that with zero new dependencies and a single file per graph.
+  `graph_store.open_store(path)` picks the backend (`InMemoryGraphStore`
+  for `.json`, `SqliteGraphStore` for `.db`/`.sqlite`) from the path
+  suffix, so the CLI and MCP server don't need to know which one they're
+  getting.
 - Sync direction between graph and markdown vault: is markdown always
   regenerated from the graph (safer, but loses "just edit the file" appeal),
   or can humans edit markdown directly and have it re-parsed back into the

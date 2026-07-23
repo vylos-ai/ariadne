@@ -123,6 +123,10 @@ class SqliteGraphStore:
         return self._node_from_row(row)
 
     def neighbors(self, node_id: str, edge_type: EdgeType | None = None) -> list[Edge]:
+        # ORDER BY rowid matches InMemoryGraphStore's insertion-ordered list --
+        # without it, SQLite's OR-optimizer may satisfy the two halves of the
+        # WHERE clause from different indexes and return rows out of
+        # insertion order, which breaks the two backends' output parity.
         query = (
             "SELECT type, source, target, evidence_ids FROM edges "
             "WHERE (source = :node_id OR target = :node_id)"
@@ -131,28 +135,31 @@ class SqliteGraphStore:
         if edge_type is not None:
             query += " AND type = :edge_type"
             params["edge_type"] = edge_type.value
+        query += " ORDER BY rowid"
         rows = self._conn.execute(query, params).fetchall()
         return [self._edge_from_row(row) for row in rows]
 
     def by_type(self, type_: NodeType | EdgeType) -> list[Node] | list[Edge]:
         if isinstance(type_, NodeType):
             rows = self._conn.execute(
-                "SELECT id, type, properties, evidence_ids FROM nodes WHERE type = ?",
+                "SELECT id, type, properties, evidence_ids FROM nodes "
+                "WHERE type = ? ORDER BY rowid",
                 (type_.value,),
             ).fetchall()
             return [self._node_from_row(row) for row in rows]
         rows = self._conn.execute(
-            "SELECT type, source, target, evidence_ids FROM edges WHERE type = ?",
+            "SELECT type, source, target, evidence_ids FROM edges "
+            "WHERE type = ? ORDER BY rowid",
             (type_.value,),
         ).fetchall()
         return [self._edge_from_row(row) for row in rows]
 
     def save(self, path: str | Path) -> None:
         nodes = self._conn.execute(
-            "SELECT id, type, properties, evidence_ids FROM nodes"
+            "SELECT id, type, properties, evidence_ids FROM nodes ORDER BY rowid"
         ).fetchall()
         edges = self._conn.execute(
-            "SELECT type, source, target, evidence_ids FROM edges"
+            "SELECT type, source, target, evidence_ids FROM edges ORDER BY rowid"
         ).fetchall()
         data = {
             "nodes": [node_to_dict(self._node_from_row(row)) for row in nodes],

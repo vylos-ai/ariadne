@@ -1,6 +1,6 @@
 import pytest
 
-from ariadne.graph_store import GraphStore, InMemoryGraphStore
+from ariadne.graph_store import GraphStore, InMemoryGraphStore, open_store
 from ariadne.schema import Edge, EdgeType, Node, NodeType
 from ariadne.sqlite_store import SqliteGraphStore
 
@@ -221,3 +221,33 @@ def test_sqlite_store_persists_after_close_and_reopen(tmp_path):
     assert reopened.get_node("role-1") == role
     assert reopened.neighbors("step-1") == [edge]
     reopened.close()
+
+
+def test_open_store_json_suffix_opens_in_memory_store_and_loads(tmp_path):
+    path = tmp_path / "graph.json"
+    step = _step("step-1", "Receive return request")
+    seed = InMemoryGraphStore()
+    seed.add_node(step)
+    seed.save(path)
+
+    store = open_store(path)
+
+    assert isinstance(store, InMemoryGraphStore)
+    assert store.get_node("step-1") == step
+
+
+@pytest.mark.parametrize("suffix", [".db", ".sqlite"])
+def test_open_store_db_suffix_opens_sqlite_store(tmp_path, suffix):
+    path = tmp_path / f"graph{suffix}"
+
+    store = open_store(path)
+
+    assert isinstance(store, SqliteGraphStore)
+    store.close()
+
+
+def test_open_store_rejects_unrecognised_suffix(tmp_path):
+    path = tmp_path / "graph.txt"
+
+    with pytest.raises(ValueError, match="unrecognised"):
+        open_store(path)

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import ariadne.cli as cli
 from ariadne.extraction import FakeExtractionProvider
+from ariadne.graph_store import open_store
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "returned_order"
 GOLD_GRAPH_PATH = FIXTURE_DIR / "gold_graph.json"
@@ -286,3 +287,35 @@ def test_export_subcommand_rejects_unknown_format(capsys):
 
     assert exit_code != 0
     assert "bpmn" in capsys.readouterr().err.lower()
+
+
+def _run(argv, capsys):
+    exit_code = cli.main(argv)
+    return exit_code, capsys.readouterr()
+
+
+def test_sqlite_and_json_backends_produce_byte_identical_cli_output(tmp_path, capsys):
+    """The headline parity test: every read-side subcommand must behave
+    identically regardless of which GraphStore backend it's pointed at."""
+    db_path = tmp_path / "gold_graph.db"
+    store = open_store(db_path)
+    store.load(GOLD_GRAPH_PATH)
+    store.close()
+
+    commands = [
+        ["validate", "{graph}"],
+        ["query", "{graph}", "describe", "step-inspect-item"],
+        ["query", "{graph}", "what-happens", "step-open-rma"],
+        ["export", "{graph}"],
+    ]
+
+    for command in commands:
+        json_argv = [arg.format(graph=str(GOLD_GRAPH_PATH)) for arg in command]
+        json_exit, json_captured = _run(json_argv, capsys)
+
+        db_argv = [arg.format(graph=str(db_path)) for arg in command]
+        db_exit, db_captured = _run(db_argv, capsys)
+
+        assert db_exit == json_exit, command
+        assert db_captured.out == json_captured.out, command
+        assert db_captured.err == json_captured.err, command

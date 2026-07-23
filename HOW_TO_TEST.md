@@ -72,6 +72,29 @@ step-inspect-item (ProcessStep)
   ...
 ```
 
+### 2a. Same commands against a SQLite graph store
+
+Every read-side subcommand (`validate`, `query`, `export`) works identically
+against a `.db` file — `graph_store.open_store()` picks the backend from the
+path suffix, so nothing else about the commands changes:
+
+```bash
+uv run python -c "
+from ariadne.graph_store import open_store
+store = open_store('/tmp/gold_graph.db')
+store.load('tests/fixtures/returned_order/gold_graph.json')
+store.close()
+"
+
+uv run ariadne validate /tmp/gold_graph.db
+uv run ariadne query /tmp/gold_graph.db describe step-inspect-item
+uv run ariadne query /tmp/gold_graph.db what-happens step-open-rma
+uv run ariadne export /tmp/gold_graph.db
+```
+
+Output is byte-identical to the `.json` invocations above — this is
+regression-tested in `tests/ariadne/test_cli.py`.
+
 ## 3. Diagram projection
 
 ```bash

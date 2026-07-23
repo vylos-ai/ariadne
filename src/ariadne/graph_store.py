@@ -1,8 +1,15 @@
-"""Graph store: the backend seam a future Kùzu (or other) backend slots into.
+"""Graph store: the backend-agnostic seam for the process graph.
 
 ``GraphStore`` is the protocol every backend must satisfy. ``InMemoryGraphStore``
 is the reference implementation used for Phase 0-1: it keeps nodes/edges in
 memory and can persist them losslessly to/from a JSON file.
+
+The durable on-disk backend is SQLite (see ``sqlite_store.py``), not Kùzu:
+Kùzu was archived by its vendor in October 2025, and Ariadne needs durable,
+indexed storage rather than a query engine -- all multi-hop traversal already
+lives in Python in ``query.py``. ``open_store()`` below picks a backend from
+a path's suffix so callers (chiefly the CLI) don't need to know which one
+they're getting.
 """
 
 from __future__ import annotations
@@ -92,3 +99,28 @@ class InMemoryGraphStore:
         data = json.loads(Path(path).read_text())
         self._nodes = {n["id"]: node_from_dict(n) for n in data.get("nodes", [])}
         self._edges = [edge_from_dict(e) for e in data.get("edges", [])]
+
+
+def open_store(path: str | Path) -> GraphStore:
+    """Open a ``GraphStore`` backend inferred from ``path``'s suffix.
+
+    ``.db`` / ``.sqlite`` opens (and creates, if missing) a ``SqliteGraphStore``
+    at that path. ``.json`` opens an ``InMemoryGraphStore`` and loads it from
+    that file. Any other suffix raises ``ValueError`` naming the supported
+    suffixes rather than silently guessing a backend.
+    """
+    # Imported locally to avoid a circular import: sqlite_store.py imports
+    # from this module at top level.
+    from ariadne.sqlite_store import SqliteGraphStore
+
+    suffix = Path(path).suffix
+    if suffix in (".db", ".sqlite"):
+        return SqliteGraphStore(path)
+    if suffix == ".json":
+        store = InMemoryGraphStore()
+        store.load(path)
+        return store
+    raise ValueError(
+        f"unrecognised graph store suffix {suffix!r} for {path!r} "
+        "(expected one of: .json, .db, .sqlite)"
+    )

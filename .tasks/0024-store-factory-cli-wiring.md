@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 priority: medium
 owner:
 created: 2026-07-23
@@ -21,25 +21,35 @@ archived by its vendor in October 2025.
 
 ## Acceptance Criteria
 
-- [ ] `graph_store.open_store(path) -> GraphStore`: a `.db` / `.sqlite` suffix
+- [x] `graph_store.open_store(path) -> GraphStore`: a `.db` / `.sqlite` suffix
       opens `SqliteGraphStore`; a `.json` file opens `InMemoryGraphStore` +
       `load()`
-- [ ] The `InMemoryGraphStore()` + `.load()` pairs in `cli.py` (`_validate`,
+- [x] The `InMemoryGraphStore()` + `.load()` pairs in `cli.py` (`_validate`,
       `_resolve`, `_query`, `_export`, `_mcp`) go through `open_store()`
-- [ ] `pipeline.py` and `resolution.py` still build in-memory stores for
+- [x] `pipeline.py` and `resolution.py` still build in-memory stores for
       computation and write out via `save()` — no behaviour change there
-- [ ] Every subcommand produces byte-identical output for a `.db` and the
+- [x] Every subcommand produces byte-identical output for a `.db` and the
       equivalent `.json` (covered by a test, not just by hand)
-- [ ] `graph_store.py` module docstring no longer describes a "Kùzu seam"; it
+- [x] `graph_store.py` module docstring no longer describes a "Kùzu seam"; it
       names SQLite and why
-- [ ] CLAUDE.md's graph-store open question records the decision: Kùzu archived
+- [x] CLAUDE.md's graph-store open question records the decision: Kùzu archived
       2025-10, traversal is app-side so no Cypher engine is needed, SQLite chosen
-- [ ] `HOW_TO_TEST.md` §2 gains the SQLite path: import the gold graph into a
+- [x] `HOW_TO_TEST.md` §2 gains the SQLite path: import the gold graph into a
       `.db`, then run `validate` / `query` / `export` against it
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
 
 ## Notes
 
 Suffix inference keeps five subcommands flag-free (YAGNI). Add an explicit
 `--backend` flag only if inference turns out to be ambiguous in practice — do
 not add it pre-emptively.
+
+## Review outcome
+
+Approved. Notable: the byte-identical parity test written for this task
+exposed a latent ordering bug in `SqliteGraphStore` from task 0023 --
+`neighbors()`, `by_type()` and `save()` had no `ORDER BY rowid`, so SQLite's
+OR-optimizer could return rows out of insertion order. 0023's parametrized
+conformance suite missed it because it compared return values rather than
+rendered output. For a tool whose entire output surface is generated
+projections, ordering is correctness.

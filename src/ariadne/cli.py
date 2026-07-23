@@ -8,7 +8,7 @@ from pathlib import Path
 from ariadne.eval import evaluate_paths, format_report
 from ariadne.export import to_mermaid
 from ariadne.extraction import ExtractionProvider, PydanticAIExtractionProvider
-from ariadne.graph_store import InMemoryGraphStore
+from ariadne.graph_store import open_store
 from ariadne.llm import configure_observability
 from ariadne.mcp_server import build_server
 from ariadne.pipeline import run_extraction_pipeline
@@ -45,8 +45,7 @@ def _eval(args: argparse.Namespace) -> int:
 
 
 def _validate(args: argparse.Namespace) -> int:
-    store = InMemoryGraphStore()
-    store.load(args.graph)
+    store = open_store(args.graph)
     violations = validate(store)
 
     if not violations:
@@ -60,8 +59,7 @@ def _validate(args: argparse.Namespace) -> int:
 
 
 def _resolve(args: argparse.Namespace) -> int:
-    store = InMemoryGraphStore()
-    store.load(args.graph)
+    store = open_store(args.graph)
     adjudicator = PydanticAIAdjudicator() if args.adjudicate else None
     resolved = resolve(store, adjudicator=adjudicator)
 
@@ -75,8 +73,7 @@ def _resolve(args: argparse.Namespace) -> int:
 
 
 def _query(args: argparse.Namespace) -> int:
-    store = InMemoryGraphStore()
-    store.load(args.graph)
+    store = open_store(args.graph)
     kind = args.kind
     rest = args.args
 
@@ -137,15 +134,13 @@ def _export(args: argparse.Namespace) -> int:
         )
         return 1
 
-    store = InMemoryGraphStore()
-    store.load(args.graph)
+    store = open_store(args.graph)
     print(exporter(store))
     return 0
 
 
 def _mcp(args: argparse.Namespace) -> int:
-    store = InMemoryGraphStore()
-    store.load(args.graph)
+    store = open_store(args.graph)
     server = build_server(store)
     server.run()  # blocks, serving over stdio
     return 0
@@ -178,13 +173,17 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser(
         "validate", help="Validate provenance and graph consistency"
     )
-    validate_parser.add_argument("graph", help="Path to a graph.json file")
+    validate_parser.add_argument(
+        "graph", help="Path to a graph store (.json, .db, or .sqlite)"
+    )
     validate_parser.set_defaults(func=_validate)
 
     resolve_parser = subparsers.add_parser(
         "resolve", help="Resolve duplicate/near-duplicate entities in a graph"
     )
-    resolve_parser.add_argument("graph", help="Path to a graph.json file")
+    resolve_parser.add_argument(
+        "graph", help="Path to a graph store (.json, .db, or .sqlite)"
+    )
     resolve_parser.add_argument(
         "--output-dir",
         default="output",
@@ -202,7 +201,9 @@ def _build_parser() -> argparse.ArgumentParser:
     query_parser = subparsers.add_parser(
         "query", help="Ask a graph question (find/describe/walk/path/what-happens)"
     )
-    query_parser.add_argument("graph", help="Path to a graph.json file")
+    query_parser.add_argument(
+        "graph", help="Path to a graph store (.json, .db, or .sqlite)"
+    )
     query_parser.add_argument("kind", choices=QUERY_KINDS, help="Kind of query")
     query_parser.add_argument(
         "args", nargs="*", help="Arguments for the chosen query kind"
@@ -212,7 +213,9 @@ def _build_parser() -> argparse.ArgumentParser:
     export_parser = subparsers.add_parser(
         "export", help="Render a projection (e.g. mermaid) from a graph.json"
     )
-    export_parser.add_argument("graph", help="Path to a graph.json file")
+    export_parser.add_argument(
+        "graph", help="Path to a graph store (.json, .db, or .sqlite)"
+    )
     export_parser.add_argument(
         "--format",
         default="mermaid",
@@ -223,7 +226,9 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp_parser = subparsers.add_parser(
         "mcp", help="Serve the query layer as an MCP server over stdio"
     )
-    mcp_parser.add_argument("graph", help="Path to a graph.json file")
+    mcp_parser.add_argument(
+        "graph", help="Path to a graph store (.json, .db, or .sqlite)"
+    )
     mcp_parser.set_defaults(func=_mcp)
 
     return parser
