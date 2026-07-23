@@ -91,9 +91,22 @@ def test_get_evidence_returns_text_and_source(client):
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == "evidence-interview-ops-lead"
-    assert "text" in body
     assert "source" in body
     assert body["source"] == "interview_ops_lead.txt"
+
+
+def test_get_evidence_returns_full_properties_when_no_text_key(client):
+    # The gold fixture's Evidence nodes store their content under "summary",
+    # not "text" -- Node.properties is deliberately schema-free (CLAUDE.md),
+    # so the endpoint must not hardcode/narrow to two keys and silently drop
+    # everything else. The trust loop dead-ends if it does.
+    response = client.get("/api/evidence/evidence-interview-ops-lead")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "text" not in body or body["text"] is None
+    assert "summary" in body
+    assert "ops lead" in body["summary"].lower() or "marcus" in body["summary"].lower()
 
 
 def test_get_evidence_unknown_id_returns_json_404(client):
@@ -109,3 +122,45 @@ def test_get_mermaid_returns_export_source(client):
     assert response.status_code == 200
     body = response.json()
     assert "flowchart TD" in body["mermaid"]
+
+
+def test_root_serves_html_page(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    body = response.text
+    assert "/static/app.js" in body
+
+    # The trust loop depends on these endpoints -- assert the client-side
+    # code actually references them rather than trusting it "looks right".
+    app_js = client.get("/static/app.js").text
+    assert "/api/graph" in app_js
+    assert "/api/nodes/" in app_js
+    assert "/api/evidence/" in app_js
+    assert "/api/mermaid" in app_js
+
+
+def test_static_assets_are_served(client):
+    for path in (
+        "/static/app.js",
+        "/static/style.css",
+        "/static/vendor/mermaid.min.js",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert response.text.strip() or response.content, path
+
+
+def test_mermaid_configured_without_html_labels(client):
+    # Mermaid renders labels inside a foreignObject and parses them as HTML
+    # by default -- downstream of any escaping, and "strict" securityLevel
+    # only strips event handlers, not tags like <img>. A node name from
+    # LLM-extracted content containing an <img src="..."> would make the
+    # browser issue an outbound request when the diagram renders, breaking
+    # the "no network calls beyond this server" constraint. htmlLabels:
+    # false forces SVG <text> labels instead, closing that vector for good
+    # -- assert it can't silently regress.
+    app_js = client.get("/static/app.js").text
+    assert "htmlLabels: false" in app_js
+    assert "flowchart: { htmlLabels: false }" in app_js

@@ -14,16 +14,21 @@ writes here would bake in the wrong shape.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route
+from starlette.responses import FileResponse, JSONResponse
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from ariadne.eval import _all_edges, _all_nodes, _node_label
 from ariadne.export import to_mermaid
 from ariadne.graph_store import GraphStore
 from ariadne.query import NeighborFact, describe
 from ariadne.schema import Node, NodeType, edge_to_dict
+
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 def _node_to_dict(node: Node) -> dict:
@@ -85,16 +90,17 @@ def build_app(store: GraphStore) -> Starlette:
         node = store.get_node(node_id)
         if node is None:
             return _not_found(node_id)
-        return JSONResponse(
-            {
-                "id": node.id,
-                "text": node.properties.get("text"),
-                "source": node.properties.get("source"),
-            }
-        )
+        # Node.properties is deliberately schema-free (schema.py/CLAUDE.md):
+        # pipeline-created evidence carries "text", LLM-extracted evidence
+        # may carry "summary"/"subject"/"from"/etc. Narrowing this response
+        # to hardcoded keys silently drops real content -- return everything.
+        return JSONResponse({"id": node.id, **node.properties})
 
     async def get_mermaid(request: Request) -> JSONResponse:
         return JSONResponse({"mermaid": to_mermaid(store)})
+
+    async def get_index(request: Request) -> FileResponse:
+        return FileResponse(_STATIC_DIR / "index.html")
 
     return Starlette(
         routes=[
@@ -102,5 +108,7 @@ def build_app(store: GraphStore) -> Starlette:
             Route("/api/nodes/{node_id}", get_node),
             Route("/api/evidence/{node_id}", get_evidence),
             Route("/api/mermaid", get_mermaid),
+            Route("/", get_index),
+            Mount("/static", app=StaticFiles(directory=_STATIC_DIR)),
         ]
     )

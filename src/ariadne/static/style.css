@@ -1,0 +1,420 @@
+/*
+ * Visual language: this UI encodes the project's trust boundary (CLAUDE.md).
+ * Everything is either *what the system inferred* (cool neutrals, sans-serif
+ * for UI, monospace for ids/edge types) or *what a human actually said*
+ * (warm paper tone, serif, set as a quotation). They must never look alike.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* System / inference -- cool neutrals */
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6b6b6b;
+  --border: #d8d8d8;
+  --panel-bg: #f6f6f7;
+  --accent: #375375;
+
+  /* Human testimony -- warm paper */
+  --paper-bg: #faf3e6;
+  --paper-border: #d8c6a3;
+  --paper-fg: #3a3226;
+  --thread-color: #b5852f;
+
+  --exception-bg: #fff3e0;
+  --exception-border: #d97706;
+  --unverified-bg: #fde2e2;
+  --unverified-border: #c0392b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e8e8e8;
+    --muted: #a0a0a0;
+    --border: #3a3a3a;
+    --panel-bg: #242424;
+    --accent: #8fa3bd;
+
+    --paper-bg: #2b2318;
+    --paper-border: #4a3f2a;
+    --paper-fg: #ecdfc4;
+    --thread-color: #d9a44a;
+
+    --exception-bg: #3a2a10;
+    --exception-border: #d97706;
+    --unverified-bg: #3a1a1a;
+    --unverified-border: #e57373;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 260px 1fr 380px;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  width: 100%;
+}
+
+header {
+  grid-column: 1 / -1;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+header h1 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+#status {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#sidebar,
+#diagram-pane,
+#detail-pane {
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+#sidebar {
+  border-right: 1px solid var(--border);
+  padding: 0.5rem;
+}
+
+#detail-pane {
+  border-left: 1px solid var(--border);
+  padding: 0.75rem;
+}
+
+#diagram-pane {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.type-group {
+  margin-bottom: 0.75rem;
+}
+
+.type-group h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 0.25rem 0;
+}
+
+.node-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.node-item .node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.node-item .flag {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+.node-item:hover {
+  background: var(--panel-bg);
+}
+
+.node-item.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
+.node-item.exception {
+  border-left: 3px solid var(--exception-border);
+  font-weight: 600;
+}
+
+.node-item.unverified {
+  border-left: 3px solid var(--unverified-border);
+}
+
+/* Visible keyboard focus everywhere interactive -- sidebar entries and
+   evidence toggles are reachable buttons, not decoration. */
+.node-item:focus-visible,
+.fallback-node:focus-visible,
+.evidence-toggle:focus-visible,
+.neighbor-link:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.badge.exception {
+  background: var(--exception-bg);
+  border: 1px solid var(--exception-border);
+  color: var(--exception-border);
+}
+
+.badge.unverified {
+  background: var(--unverified-bg);
+  border: 1px solid var(--unverified-border);
+  color: var(--unverified-border);
+}
+
+#diagram-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+#diagram-toolbar button {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+}
+
+#diagram-toolbar button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+#mermaid-container {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Exception nodes draw the eye first in the diagram too, not just the
+   sidebar -- they're the tribal-knowledge payload. */
+.diagram-exception rect,
+.diagram-exception polygon,
+.diagram-exception path.basic,
+.diagram-exception .node-bkg {
+  stroke: var(--exception-border) !important;
+  stroke-width: 3px !important;
+  fill: var(--exception-bg) !important;
+}
+
+.fallback-diagram .role-group {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.fallback-diagram h3 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.fallback-node {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  margin: 0.2rem 0.3rem 0.2rem 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--panel-bg);
+}
+
+.fallback-node.exception {
+  border-color: var(--exception-border);
+  background: var(--exception-bg);
+}
+
+.fallback-node.unverified {
+  border-color: var(--unverified-border);
+}
+
+.fallback-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.fact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.fact-item {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.fact-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fact-header .edge-type {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.fact-header .neighbor-link {
+  cursor: pointer;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.evidence-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fg);
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+}
+
+/* The thread: a physical line from a claim down into its quoted source
+   (Ariadne's thread leading back out of the labyrinth). The one bold
+   decorative element in this UI -- everything else stays quiet. */
+.evidence-thread {
+  width: 18px;
+  height: 14px;
+  margin-left: 8px;
+  border-left: 2px solid var(--thread-color);
+  border-bottom: 2px solid var(--thread-color);
+  border-bottom-left-radius: 8px;
+}
+
+.evidence-body {
+  margin-left: 8px;
+  padding-left: 0.75rem;
+}
+
+.evidence-quote {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--paper-bg);
+  border: 1px solid var(--paper-border);
+  border-left: 4px solid var(--thread-color);
+  border-radius: 2px;
+  color: var(--paper-fg);
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.evidence-quote.evidence-empty {
+  font-family: var(--font-sans);
+  font-style: italic;
+  color: var(--muted);
+  background: none;
+  border-left-color: var(--unverified-border);
+}
+
+.evidence-meta {
+  margin-top: 0.4rem;
+}
+
+.evidence-source {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+  font-family: var(--font-mono);
+}
+
+.props-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin: 0.5rem 0;
+}
+
+.props-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.2rem 0.3rem;
+  vertical-align: top;
+}
+
+.props-table td.key {
+  color: var(--muted);
+  white-space: nowrap;
+  width: 30%;
+}
+
+.node-id {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state {
+  color: var(--muted);
+  padding: 1rem;
+}
