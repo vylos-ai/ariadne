@@ -58,7 +58,9 @@ dependencies = [
     { name = "mcp" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "openai"] },
     { name = "pyyaml" },
+    { name = "starlette" },
     { name = "textual" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -73,7 +75,9 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.28.1" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "openai"], specifier = ">=2.16.0" },
     { name = "pyyaml" },
+    { name = "starlette" },
     { name = "textual" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata.requires-dev]

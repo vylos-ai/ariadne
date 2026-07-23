@@ -5,6 +5,8 @@ import sys
 
 from pathlib import Path
 
+import uvicorn
+
 from ariadne.eval import evaluate_paths, format_report
 from ariadne.export import to_mermaid
 from ariadne.extraction import ExtractionProvider, PydanticAIExtractionProvider
@@ -17,8 +19,18 @@ from ariadne.resolution import PydanticAIAdjudicator, resolve
 from ariadne.schema import EdgeType
 from ariadne.validation import validate
 from ariadne.vault import render_vault
+from ariadne.web import build_app
 
-SUBCOMMANDS = ("extract", "eval", "validate", "resolve", "query", "export", "mcp")
+SUBCOMMANDS = (
+    "extract",
+    "eval",
+    "validate",
+    "resolve",
+    "query",
+    "export",
+    "mcp",
+    "serve",
+)
 QUERY_KINDS = ("find", "describe", "walk", "path", "what-happens")
 
 # Exporters keyed by --format value. Mermaid is the only projection for now
@@ -146,6 +158,13 @@ def _mcp(args: argparse.Namespace) -> int:
     return 0
 
 
+def _serve(args: argparse.Namespace) -> int:
+    store = open_store(args.graph)
+    app = build_app(store)
+    uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ariadne")
     subparsers = parser.add_subparsers(dest="command")
@@ -230,6 +249,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "graph", help="Path to a graph store (.json, .db, or .sqlite)"
     )
     mcp_parser.set_defaults(func=_mcp)
+
+    serve_parser = subparsers.add_parser(
+        "serve", help="Serve a read-only JSON API + web UI over a graph"
+    )
+    serve_parser.add_argument(
+        "graph", help="Path to a graph store (.json, .db, or .sqlite)"
+    )
+    serve_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind (default: 127.0.0.1 -- localhost only; this may "
+        "hold sensitive process knowledge, so pass --host explicitly to "
+        "bind elsewhere)",
+    )
+    serve_parser.add_argument(
+        "--port", type=int, default=8000, help="Port to bind (default: 8000)"
+    )
+    serve_parser.set_defaults(func=_serve)
 
     return parser
 

@@ -62,7 +62,12 @@ class SqliteGraphStore:
 
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
-        self._conn = sqlite3.connect(self._path)
+        # check_same_thread=False: callers that serve this store over ASGI
+        # (see web.py) dispatch requests from a worker thread distinct from
+        # the one that opened the store. Access is still effectively
+        # single-threaded per request; sqlite3's own statement-level locking
+        # covers the rest.
+        self._conn = sqlite3.connect(self._path, check_same_thread=False)
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 

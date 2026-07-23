@@ -8,6 +8,8 @@ factory is monkeypatched out and replaced with the offline
 import json
 from pathlib import Path
 
+from starlette.testclient import TestClient
+
 import ariadne.cli as cli
 from ariadne.extraction import FakeExtractionProvider
 from ariadne.graph_store import open_store
@@ -319,3 +321,36 @@ def test_sqlite_and_json_backends_produce_byte_identical_cli_output(tmp_path, ca
         assert db_exit == json_exit, command
         assert db_captured.out == json_captured.out, command
         assert db_captured.err == json_captured.err, command
+
+
+def test_serve_subcommand_runs_uvicorn_with_app_built_from_store(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        cli.uvicorn, "run", lambda app, host, port: calls.append((app, host, port))
+    )
+
+    exit_code = cli.main(["serve", str(GOLD_GRAPH_PATH)])
+
+    assert exit_code == 0
+    assert len(calls) == 1
+    app, host, port = calls[0]
+    assert host == "127.0.0.1"
+    assert port == 8000
+    client = TestClient(app)
+    assert client.get("/api/graph").status_code == 200
+
+
+def test_serve_subcommand_accepts_host_and_port_overrides(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        cli.uvicorn, "run", lambda app, host, port: calls.append((app, host, port))
+    )
+
+    exit_code = cli.main(
+        ["serve", str(GOLD_GRAPH_PATH), "--host", "0.0.0.0", "--port", "9001"]
+    )
+
+    assert exit_code == 0
+    _, host, port = calls[0]
+    assert host == "0.0.0.0"
+    assert port == 9001
