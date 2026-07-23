@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ariadne.eval import evaluate_paths, format_report
 from ariadne.export import to_mermaid
-from ariadne.extraction import AnthropicExtractionProvider, ExtractionProvider
+from ariadne.extraction import ExtractionProvider, PydanticAIExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
 from ariadne.mcp_server import build_server
 from ariadne.pipeline import run_extraction_pipeline
@@ -27,7 +27,7 @@ _EXPORTERS = {"mermaid": to_mermaid}
 
 def _default_provider() -> ExtractionProvider:
     """Build the live extraction provider. Kept as a seam for tests to patch."""
-    return AnthropicExtractionProvider()
+    return PydanticAIExtractionProvider()
 
 
 def _extract(args: argparse.Namespace) -> int:

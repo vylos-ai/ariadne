@@ -18,8 +18,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-import anthropic
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
 
+from ariadne.llm import build_model
 from ariadne.schema import (
     EDGE_TYPES,
     NODE_TYPES,
@@ -29,64 +32,54 @@ from ariadne.schema import (
     node_from_dict,
 )
 
-# Single source of truth for the extraction model id. The exact model is
-# deferred/configurable -- this is a reasonable current default.
-MODEL = "claude-sonnet-4-5-20250929"
 
-_TOOL_NAME = "record_process_elements"
+class ExtractedNode(BaseModel):
+    """A candidate node, as returned by the extraction agent."""
 
-_TOOL_SCHEMA = {
-    "name": _TOOL_NAME,
-    "description": (
-        "Record candidate process-graph nodes and edges extracted from the "
-        "source text. Node/edge types are hints, not rigid constraints -- "
-        "use the closest fit rather than forcing a bad categorization."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "nodes": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "type": {
-                            "type": "string",
-                            "description": f"Hint, one of: {sorted(NODE_TYPES)}",
-                        },
-                        "properties": {"type": "object"},
-                        "evidence_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                    },
-                    "required": ["id", "type"],
-                },
-            },
-            "edges": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "description": f"Hint, one of: {sorted(EDGE_TYPES)}",
-                        },
-                        "source": {"type": "string"},
-                        "target": {"type": "string"},
-                        "evidence_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                    },
-                    "required": ["type", "source", "target"],
-                },
-            },
-        },
-        "required": ["nodes", "edges"],
-    },
-}
+    id: str = Field(
+        description=(
+            "Stable, lowercase slug id, e.g. 'receive-returned-order'. Reuse "
+            "the same id for the same real-world entity across the text."
+        )
+    )
+    type: str = Field(description=f"Hint, one of: {sorted(NODE_TYPES)}")
+    properties: dict = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class ExtractedEdge(BaseModel):
+    """A candidate edge, as returned by the extraction agent."""
+
+    type: str = Field(description=f"Hint, one of: {sorted(EDGE_TYPES)}")
+    source: str
+    target: str
+    evidence_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Every edge except 'evidenced_by' must reference at least one "
+            "evidence id -- an edge with no evidence will be rejected."
+        ),
+    )
+
+
+class ExtractionPayload(BaseModel):
+    """Candidate process-graph nodes/edges extracted from source text."""
+
+    nodes: list[ExtractedNode] = Field(default_factory=list)
+    edges: list[ExtractedEdge] = Field(default_factory=list)
+
+
+_INSTRUCTIONS = (
+    "Extract candidate process-graph nodes and edges from the source text "
+    "you are given. Node/edge types are hints, not rigid constraints -- use "
+    "the closest fit rather than forcing a bad categorization.\n\n"
+    "Node ids must be stable, lowercase slugs: reuse the same id every time "
+    "the same real-world entity (step, role, system, document, ...) is "
+    "referenced, so nodes can be linked across edges and across documents.\n\n"
+    "Provenance is first-class: every edge except 'evidenced_by' must "
+    "reference at least one evidence id pointing at the Evidence node it "
+    "was inferred from. Do not emit an edge you cannot ground in the text."
+)
 
 
 @dataclass
@@ -151,39 +144,25 @@ class FakeExtractionProvider:
         return _payload_to_result(self._payload)
 
 
-class AnthropicExtractionProvider:
-    """Real provider: wraps the Anthropic API behind ``ExtractionProvider``.
+class PydanticAIExtractionProvider:
+    """Real provider: wraps a Pydantic AI ``Agent`` behind ``ExtractionProvider``.
 
-    Uses tool-use (structured output) with the node/edge schema passed as a
-    hint via the tool's input schema description. A client must be supplied
-    explicitly in tests (a mock) to guarantee no live API calls are made;
-    when omitted, a real ``anthropic.Anthropic()`` client is constructed.
+    Provider-agnostic -- the underlying model is whatever ``build_model()``
+    (see ``ariadne.llm``) resolves from configuration, so swapping LLM
+    vendors is an environment-variable change, not a code change. Structured
+    output is enforced by pydantic (``ExtractionPayload``); a Pydantic AI
+    test double (``TestModel``/``FunctionModel``) can be passed directly as
+    ``model=`` in tests to guarantee no live API calls are made -- they are
+    themselves model objects, so no separate constructor seam is needed.
     """
 
-    def __init__(
-        self, client: anthropic.Anthropic | None = None, model: str = MODEL
-    ) -> None:
-        self._client = client if client is not None else anthropic.Anthropic()
-        self._model = model
+    def __init__(self, model: str | OpenAIChatModel | None = None) -> None:
+        self.agent = Agent(
+            model if model is not None else build_model(),
+            output_type=ExtractionPayload,
+            instructions=_INSTRUCTIONS,
+        )
 
     def extract(self, text: str) -> ExtractionResult:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=4096,
-            tools=[_TOOL_SCHEMA],
-            tool_choice={"type": "tool", "name": _TOOL_NAME},
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        "Extract process-graph nodes and edges from the "
-                        f"following source text using the {_TOOL_NAME} "
-                        f"tool.\n\n{text}"
-                    ),
-                }
-            ],
-        )
-        for block in response.content:
-            if getattr(block, "type", None) == "tool_use":
-                return _payload_to_result(block.input)
-        raise ValueError("Anthropic response did not contain a tool_use block")
+        result = self.agent.run_sync(text)
+        return _payload_to_result(result.output.model_dump())
