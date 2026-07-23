@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 priority: high
 owner:
 created: 2026-07-23
@@ -23,10 +23,10 @@ to be abandoned.
 
 ## Acceptance Criteria
 
-- [ ] `src/ariadne/sqlite_store.py` defines `SqliteGraphStore` satisfying the
+- [x] `src/ariadne/sqlite_store.py` defines `SqliteGraphStore` satisfying the
       existing `GraphStore` protocol with **no protocol changes** and **no new
       dependencies**
-- [ ] Schema:
+- [x] Schema:
       ```sql
       CREATE TABLE nodes(
           id TEXT PRIMARY KEY, type TEXT NOT NULL,
@@ -41,22 +41,22 @@ to be abandoned.
       CREATE INDEX nodes_type   ON nodes(type);
       ```
       created idempotently (`IF NOT EXISTS`) so reopening an existing DB is a no-op
-- [ ] `properties` / `evidence_ids` are JSON columns written and read via the
+- [x] `properties` / `evidence_ids` are JSON columns written and read via the
       existing `node_to_dict` / `node_from_dict` / `edge_to_dict` /
       `edge_from_dict` helpers — one serialization path, lossless round-trip
-- [ ] `edges` is **not** unique on `(source, target)`: two differently-typed
+- [x] `edges` is **not** unique on `(source, target)`: two differently-typed
       edges between the same pair must both survive
-- [ ] `add_node` upserts, matching `InMemoryGraphStore`'s dict-assignment semantics
-- [ ] `add_edge` raises on a missing source/target with the **same error message**
+- [x] `add_node` upserts, matching `InMemoryGraphStore`'s dict-assignment semantics
+- [x] `add_edge` raises on a missing source/target with the **same error message**
       as `InMemoryGraphStore`, enforced in Python (SQLite foreign keys are off by
       default — do not rely on the `REFERENCES` clause)
-- [ ] `save()` / `load()` remain JSON export/import, so existing fixtures, the
+- [x] `save()` / `load()` remain JSON export/import, so existing fixtures, the
       gold graph and the eval harness interoperate unchanged
-- [ ] `tests/ariadne/test_graph_store.py` is parametrized over both backends, so
+- [x] `tests/ariadne/test_graph_store.py` is parametrized over both backends, so
       the protocol suite becomes the conformance suite; SQLite cases use `tmp_path`
-- [ ] One additional test the in-memory store cannot express: close and reopen
+- [x] One additional test the in-memory store cannot express: close and reopen
       the DB, confirm the graph is still there
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
 
 ## Notes
 
@@ -65,3 +65,15 @@ CLI wiring is task 0024 — this task ends with the backend plus its tests.
 `neighbors()` should use the `edges_source` / `edges_target` indexes; this is
 the real win over the in-memory list scan and helps the known-slow O(V·E)
 `what_happens`.
+
+## Review outcome
+
+Approved. Two non-blocking observations, both deliberately not acted on:
+
+- `neighbors()` uses `WHERE source = ? OR target = ?`; the reviewer suspected
+  this might defeat the indexes. Checked with EXPLAIN QUERY PLAN: SQLite
+  applies its MULTI-INDEX OR optimization and searches via `edges_source` AND
+  `edges_target`, no table scan. A UNION ALL rewrite would buy nothing.
+- `SqliteGraphStore` has `close()` but no context-manager protocol. Fine for
+  CLI use, where the process exits promptly. Revisit if the store is ever used
+  from a long-running service.
