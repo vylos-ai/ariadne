@@ -9,6 +9,7 @@ from ariadne.eval import evaluate_paths, format_report
 from ariadne.export import to_mermaid
 from ariadne.extraction import ExtractionProvider, PydanticAIExtractionProvider
 from ariadne.graph_store import InMemoryGraphStore
+from ariadne.llm import configure_observability
 from ariadne.mcp_server import build_server
 from ariadne.pipeline import run_extraction_pipeline
 from ariadne.query import describe, find_nodes, path, walk, what_happens
@@ -229,6 +230,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_observability()
     parser = _build_parser()
     args = parser.parse_args(argv)
 

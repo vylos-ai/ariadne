@@ -6,6 +6,9 @@ source edits required.
 """
 
 import os
+import sys
+
+import logfire
 
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -48,3 +51,25 @@ def build_model(
         explicit_model,
         provider=OpenAIProvider(base_url=resolved_base_url, api_key=resolved_api_key),
     )
+
+
+def configure_observability() -> None:
+    """Turn on Logfire tracing of Pydantic AI calls, if opted in.
+
+    No-op unless `LOGFIRE_TOKEN` or `ARIADNE_TRACE=1` is set in the
+    environment. Never raises: if Logfire is unreachable, misconfigured, or
+    the token is bad, a warning is printed to stderr and the CLI proceeds
+    untraced. A tracing backend being down must never break an extraction
+    run.
+    """
+    opted_in = (
+        bool(os.environ.get("LOGFIRE_TOKEN")) or os.environ.get("ARIADNE_TRACE") == "1"
+    )
+    if not opted_in:
+        return
+
+    try:
+        logfire.configure()
+        logfire.instrument_pydantic_ai()
+    except Exception as exc:  # noqa: BLE001 - tracing must never break the CLI
+        print(f"ariadne: Logfire observability disabled ({exc})", file=sys.stderr)
